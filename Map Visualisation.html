@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Regions by Area</title>
+    <script src="https://d3js.org/d3.v7.min.js"></script> <!-- D3.js library -->
+</head>
+<body>
+    <h1>Regions by Area</h1>
+    <svg width="960" height="600"></svg>
+
+    <script>
+        d3.csv('https://raw.githubusercontent.com/JannesPeeters/DEAD/main/data/regions.csv')
+            .then(data => {
+                const nestedData = d3.group(data, d => d.Area, d => d.Region);
+                const areaNames = Array.from(nestedData.keys());
+
+                const diameter = 600;
+                const color = d3.scaleOrdinal(d3.schemeCategory10)
+                    .domain(areaNames);
+
+                const pack = data =>
+                    d3.pack()
+                        .size([diameter - 4, diameter - 4])
+                        .padding(3)
+                        (d3.hierarchy({ children: data })
+                            .sum(d => d.size)
+                            .sort((a, b) => b.value - a.value));
+
+                const root = pack(Array.from(nestedData.entries(), ([area, regions]) => ({ name: area, children: Array.from(regions).map(region => ({ name: region[0], size: region[1].length })) })));
+
+                const svg = d3.select('svg')
+                    .attr('viewBox', [0, 0, diameter, diameter])
+                    .attr('font-size', 10)
+                    .attr('font-family', 'sans-serif')
+                    .attr('text-anchor', 'middle');
+
+                const leaf = svg.selectAll('g')
+                    .data(root.leaves())
+                    .join('g')
+                    .attr('transform', d => `translate(${d.x + 1},${d.y + 1})`);
+
+                leaf.append('circle')
+                    .attr('r', d => d.r)
+                    .attr('fill-opacity', 0.7)
+                    .attr('fill', d => color(d.parent.data.name))
+                    .append('title')
+                    .text(d => `${d.ancestors().map(d => d.data.name).reverse().join('/')}\n${d.data.name}\n${d.value}`);
+
+                leaf.append('text')
+                    .selectAll('tspan')
+                    .data(d => d.data.name.split(/(?=[A-Z][^A-Z])/g).concat(d.value))
+                    .join('tspan')
+                    .attr('x', 0)
+                    .attr('y', (d, i, nodes) => `${i === nodes.length - 1 ? 1 : 0.3 + i * 1.1}em`)
+                    .attr('fill-opacity', (d, i, nodes) => i === nodes.length - 1 ? 0.7 : null)
+                    .text(d => d);
+
+                svg.append('g')
+                    .attr('fill', 'none')
+                    .attr('pointer-events', 'all')
+                    .selectAll('circle')
+                    .data(root.descendants().slice(1))
+                    .join('circle')
+                    .attr('cx', d => d.x)
+                    .attr('cy', d => d.y)
+                    .attr('r', d => d.r)
+                    .attr('fill-opacity', 0.1)
+                    .attr('stroke', '#fff')
+                    .attr('stroke-width', 2)
+                    .on('mouseover', function () { d3.select(this).attr('fill-opacity', 0.5); })
+                    .on('mouseout', function () { d3.select(this).attr('fill-opacity', 0.1); });
+
+                const legend = svg.selectAll('.legend')
+                    .data(color.domain())
+                    .enter().append('g')
+                    .attr('class', 'legend')
+                    .attr('transform', (d, i) => `translate(0,${i * 20})`);
+
+                legend.append('rect')
+                    .attr('x', diameter - 18)
+                    .attr('width', 18)
+                    .attr('height', 18)
+                    .style('fill', color);
+
+                legend.append('text')
+                    .attr('x', diameter - 24)
+                    .attr('y', 9)
+                    .attr('dy', '.35em')
+                    .style('text-anchor', 'end')
+                    .text(d => d);
+            })
+            .catch(error => console.error('Error fetching data:', error));
+    </script>
+</body>
+</html>
